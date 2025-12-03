@@ -43,7 +43,7 @@ import time
 import os
 import psutil
 
-# Pin to CPU cores 0–3
+# Pin to CPU cores 0–3git stat
 available_cores = list(range(psutil.cpu_count()))
 psutil.Process(os.getpid()).cpu_affinity(available_cores)
 
