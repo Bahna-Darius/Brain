@@ -70,7 +70,7 @@ export class WebSocketService {
 
   constructor() {
     this.webSocket = new Socket({
-    url: "http://192.168.88.48:5005",
+    url: "http://192.168.0.186:5005",
     options: {},
     });
 
