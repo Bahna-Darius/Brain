@@ -1,70 +1,132 @@
-if __name__ == "__main__":
-    import sys
-
-    sys.path.insert(0, "../../..")
-
-from src.templates.workerProcess import WorkerProcess
+from src.templates.workerprocess import WorkerProcess
 from src.utils.messages.allMessages import SpeedMotor, SteerMotor
+import threading
+import platform
+import time
+import json
+import sys
+import os
 
 
-class processLaneKeeper(WorkerProcess):
-    """
-    Acesta este procesul nostru de decizie.
-    El va analiza datele si va trimite comenzi de miscare.
-    """
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+brain_root = os.path.abspath(os.path.join(current_dir, '../../..'))
+
+if brain_root not in sys.path:
+    sys.path.append(brain_root)
+
+
+IS_SIMULATOR = platform.machine() == 'x86_64'
+
+if IS_SIMULATOR:
+    from rclpy.node import Node
+    from std_msgs.msg import String
+    import rclpy
+
+
+class ProcessLaneKeeper(WorkerProcess):
     def __init__(self, queueList, logging, debugging=False):
         self.queueList = queueList
         self.logging = logging
         self.debugging = debugging
-        super(processLaneKeeper, self).__init__(self.queueList)
+        super(ProcessLaneKeeper, self).__init__(self.queueList)
+
+        self.send_queue = self.queueList["General"]
+        self.ros_publisher = None
+        self.ros_node = None
+
+    def _init_ros_node(self):
+        try:
+            if not rclpy.ok():
+                rclpy.init()
+        except:
+            pass
+
+        self.ros_node = Node('brain_lane_keeper')
+        self.ros_publisher = self.ros_node.create_publisher(String, '/automobile/command', 10)
+        self.logging.info("✅ [LaneKeeper] ROS Connected!")
+        rclpy.spin(self.ros_node)
 
     def run(self):
-        super(processLaneKeeper, self).run()
+        super(ProcessLaneKeeper, self).run()
+
 
     def _init_threads(self):
-        """Initializam thread-ul de lucru."""
         if self.debugging:
-            self.logging.info("LaneKeeper Process Initialized")
-        return [self._work]
+            self.logging.info("ℹ️ [LaneKeeper] Process Initialized")
+
+        if IS_SIMULATOR:
+            ros_th = threading.Thread(target=self._init_ros_node, daemon=True)
+            ros_th.start()
+
+        work_th = threading.Thread(target=self._work)
+        work_th.daemon = True
+        work_th.start()
+
+        return [work_th]
+
+
+    def _send_command_once(self, speed, steer):
+        """Sends commands to both Simulator and Real Car"""
+        if IS_SIMULATOR and self.ros_publisher is not None:
+            # 1. Full JSON (New Standard)
+            msg_full = {"action": "1", "speed": float(speed), "steerAngle": float(steer)}
+            self.ros_publisher.publish(String(data=json.dumps(msg_full)))
+
+            # 2. Separate Messages (Old Standard/Serial Style) - Critical for some simulators
+            cmd_speed = {"action": "1", "speed": float(speed)}
+            self.ros_publisher.publish(String(data=json.dumps(cmd_speed)))
+
+            cmd_steer = {"action": "2", "steerAngle": float(steer)}
+            self.ros_publisher.publish(String(data=json.dumps(cmd_steer)))
+
+        elif not IS_SIMULATOR:
+            # Real Car (SerialHandler)
+            cmd_speed = {"Owner": "LK", "msgID": SpeedMotor.msgID, "msgType": SpeedMotor.msgType,
+                         "msgValue": float(speed)}
+            self.send_queue.put(cmd_speed)
+
+            cmd_steer = {"Owner": "LK", "msgID": SteerMotor.msgID, "msgType": SteerMotor.msgType,
+                         "msgValue": float(steer)}
+            self.send_queue.put(cmd_steer)
+
+
+    def run_sequence(self, duration, speed, steer, message):
+        """Sends the command continuously for 'duration' seconds"""
+        self.logging.info(f"👉 {message} (Time: {duration}s, Spd: {speed}, Str: {steer})")
+
+        t_end = time.time() + duration
+        while time.time() < t_end:
+            self._send_command_once(speed, steer)
+            time.sleep(0.1)  # 10Hz
 
     def _work(self):
-        """
-        Aceasta functie ruleaza in bucla continua.
-        Aici vom scrie logica de conducere autonoma.
-        """
-        import time
+        """Main Logic"""
+        if IS_SIMULATOR:
+            self.logging.info("⏳ Waiting for ROS...")
+            while self.ros_publisher is None:
+                time.sleep(1)
+            time.sleep(2)
 
-        # Asteptam putin la inceput ca sa se initializeze tot sistemul
-        time.sleep(3)
-        self.logging.info("LaneKeeper: STARTING MOVE SEQUENCE")
+        self.logging.info("🚀 STARTING REVERSE DEMO")
 
-        # --- PASUL 1: Mergi Inainte ---
-        # Cream mesajul de viteza
-        # Action '1' inseamna setarea vitezei/directiei
-        speed_command = {
-            "action": "1",
-            "speed": 0.2  # Viteza mica (m/s)
-        }
+        # 1. FORWARD (Straight)
+        self.run_sequence(3.0, 0.3, 0.0, "MOVING FORWARD")
 
-        # Trimitem mesajul in coada "General" (Gateway il va prelua)
-        # Nota: In arhitectura Brain, mesajele sunt obiecte, dar SerialHandler asteapta dictionare sau string-uri specifice.
-        # Vom folosi o abordare simpla compatibila cu handler-ul lor.
+        # 2. RIGHT TURN (Forward)
+        self.run_sequence(4.0, 0.3, 25.0, "TURNING RIGHT")
 
-        self.send_queue.put(speed_command)
-        self.logging.info("LaneKeeper: Sending Speed 0.2")
+        # 3. STOP & STRAIGHTEN WHEELS (Crucial Step!)
+        # We stop the car and set steer to 0.0 before reversing
+        self.run_sequence(1.0, 0.0, 0.0, "STOP & STRAIGHTEN WHEELS")
 
-        # Mergem 3 secunde
-        time.sleep(3.0)
+        # 4. REVERSE (Straight Backwards)
+        # Negative speed (-0.3) and Zero Steer (0.0)
+        self.run_sequence(5.0, -0.3, 0.0, "REVERSING STRAIGHT")
 
-        # --- PASUL 2: Opreste ---
-        stop_command = {
-            "action": "1",
-            "speed": 0.0
-        }
-        self.send_queue.put(stop_command)
-        self.logging.info("LaneKeeper: STOPPING")
+        # 5. FINAL STOP
+        self.logging.info("🛑 MISSION COMPLETE")
+        self._send_command_once(0.0, 0.0)
 
-        # Dupa ce am terminat secventa, intram intr-o bucla de asteptare ca sa nu se termine procesul
         while True:
             time.sleep(1)

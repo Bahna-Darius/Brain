@@ -60,15 +60,24 @@ from src.gateway.processGateway import processGateway
 from src.dashboard.processDashboard import processDashboard
 from src.hardware.camera.processCamera import processCamera
 from src.hardware.serialhandler.processSerialHandler import processSerialHandler
-from src.data.Semaphores.processSemaphores import processSemaphores
-from src.data.TrafficCommunication.processTrafficCommunication import processTrafficCommunication
+# from src.data.Semaphores.processSemaphores import processSemaphores
+# from src.data.TrafficCommunication.processTrafficCommunication import processTrafficCommunication
 from src.utils.messages.messageHandlerSubscriber import messageHandlerSubscriber
 from src.utils.messages.allMessages import StateChange
 from src.statemachine.stateMachine import StateMachine
 from src.statemachine.systemMode import SystemMode
 
 # ------ New component imports starts here ------#
-
+### Laptop  fake module for raspberry ###
+from unittest.mock import MagicMock
+import platform
+import sys
+if platform.machine() == 'x86_64':
+    print("⚠️  Running on Laptop/Simulator mode. Mocking picamera2...")
+    sys.modules["picamera2"] = MagicMock()
+    sys.modules["PiDNG"] = MagicMock()
+##########
+from src.algorithms.processLaneKeeper import ProcessLaneKeeper
 
 # ------ New component imports ends here ------#
 
@@ -137,22 +146,23 @@ processCamera = processCamera(queueList, logging, camera_ready, debugging = Fals
 
 # Initializing semaphores
 semaphore_ready = Event()
-processSemaphore = processSemaphores(queueList, logging, semaphore_ready, debugging = False)
+# processSemaphore = processSemaphores(queueList, logging, semaphore_ready, debugging = False)
 
 # Initializing GPS
 traffic_com_ready = Event()
-processTrafficCom = processTrafficCommunication(queueList, logging, 3, traffic_com_ready, debugging = False)
+# processTrafficCom = processTrafficCommunication(queueList, logging, 3, traffic_com_ready, debugging = False)
 
 # Initializing serial connection NUCLEO - > PI
 serial_handler_ready = Event()
 processSerialHandler = processSerialHandler(queueList, logging, serial_handler_ready, dashboard_ready, debugging = False)
 
 # Adding all processes to the list
-allProcesses.extend([processCamera, processSemaphore, processTrafficCom, processSerialHandler, processDashboard])
+# allProcesses.extend([processCamera, processSemaphore, processTrafficCom, processSerialHandler, processDashboard])
 allEvents.extend([camera_ready, semaphore_ready, traffic_com_ready, serial_handler_ready, dashboard_ready])
 
 # ------ New component initialize starts here ------#
-
+procLaneKeeper = ProcessLaneKeeper(queueList, logging, debugging=True)
+allProcesses.append(procLaneKeeper)
 # ------ New component initialize ends here ------#
 
 # ===================================== START PROCESSES ==================================
@@ -182,8 +192,8 @@ try:
             modeDictSemaphore = SystemMode[message].value["semaphore"]["process"]
             modeDictTrafficCom = SystemMode[message].value["traffic_com"]["process"]
 
-            processSemaphore = manage_process_life(processSemaphores, processSemaphore, [queueList, logging, semaphore_ready, False], modeDictSemaphore["enabled"], allProcesses)
-            processTrafficCom = manage_process_life(processTrafficCommunication, processTrafficCom, [queueList, logging, 3, traffic_com_ready, False], modeDictTrafficCom["enabled"], allProcesses)
+            # processSemaphore = manage_process_life(processSemaphores, processSemaphore, [queueList, logging, semaphore_ready, False], modeDictSemaphore["enabled"], allProcesses)
+            # processTrafficCom = manage_process_life(processTrafficCommunication, processTrafficCom, [queueList, logging, 3, traffic_com_ready, False], modeDictTrafficCom["enabled"], allProcesses)
 
         blocker.wait(0.1)
 
