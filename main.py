@@ -79,6 +79,7 @@ if platform.machine() == 'x86_64':
 ##########
 
 from src.algorithms.processLaneKeeper import ProcessLaneKeeper
+from src.algorithms.LaneAssist.processLaneAssist import processLaneAssist
 
 # ------ New component imports ends here ------#
 
@@ -164,6 +165,11 @@ allEvents.extend([camera_ready, semaphore_ready, traffic_com_ready, serial_handl
 # ------ New component initialize starts here ------#
 procLaneKeeper = ProcessLaneKeeper(queueList, logging, debugging=True)
 allProcesses.append(procLaneKeeper)
+
+LaneAssist_ready = Event()
+processLaneAssist = processLaneAssist(queueList, logging, LaneAssist_ready, debugging = False)
+allProcesses.insert(0, processLaneAssist)
+
 # ------ New component initialize ends here ------#
 
 # ===================================== START PROCESSES ==================================
