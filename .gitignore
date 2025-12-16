@@ -3,3 +3,6 @@ docs/build/
 __pycache__
 **/*.pyc
 /src/dashboard/frontend/node_modules
+temp/serial_history.log
+src/dashboard/frontend/.angular/cache
+src/dashboard/frontend/src/app/webSocket/web-socket.service.ts
