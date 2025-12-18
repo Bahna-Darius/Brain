@@ -6,3 +6,43 @@ __pycache__
 temp/serial_history.log
 src/dashboard/frontend/.angular/cache
 src/dashboard/frontend/src/app/webSocket/web-socket.service.ts
+
+# ======================
+# Python
+# ======================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ======================
+# Generated videos / logs
+# ======================
+output_video_*.avi
+*.log
+
+# ======================
+# OS
+# ======================
+.DS_Store
+Thumbs.db
+
+# ======================
+# Angular / Frontend
+# ======================
+src/dashboard/frontend/.angular/
+src/dashboard/frontend/node_modules/
+src/dashboard/frontend/dist/
+*.tsbuildinfo
+
+# ======================
+# Vite / cache
+# ======================
+.vite/
+.cache/
+
+# ======================
+# Runtime / temp
+# ======================
+tmp/
+temp/

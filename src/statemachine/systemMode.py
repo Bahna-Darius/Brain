@@ -62,10 +62,10 @@ class SystemMode(Enum):
         "mode": "auto",
         "camera": {
             "process": {
-                "enabled": False,
+                "enabled": True,
             },
             "thread": {
-                "resolution": "480p",
+                "resolution": "720p",
             }
         },
         "serial_handler": {
@@ -143,7 +143,7 @@ class SystemMode(Enum):
         "mode": "stop",
         "camera": {
             "process": {
-                "enabled": False,
+                "enabled": True,
             },
             "thread": {
                 "resolution": "240p",

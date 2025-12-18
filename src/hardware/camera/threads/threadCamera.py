@@ -31,6 +31,7 @@ import threading
 import base64
 import picamera2
 import time
+import numpy as np
 
 from src.utils.messages.allMessages import (
     mainCamera,
@@ -39,11 +40,10 @@ from src.utils.messages.allMessages import (
     Record,
     Brightness,
     Contrast,
+    StateChange
 )
 from src.utils.messages.messageHandlerSender import messageHandlerSender
-from src.utils.messages.messageHandlerSubscriber import messageHandlerSubscriber
 from src.templates.threadwithstop import ThreadWithStop
-from src.utils.messages.allMessages import StateChange
 from src.utils.messages.messageHandlerSubscriber import messageHandlerSubscriber
 from src.statemachine.systemMode import SystemMode
 
@@ -128,9 +128,16 @@ class threadCamera(ThreadWithStop):
                 self.video_writer.write(mainRequest) # type: ignore
 
             serialRequest = cv2.cvtColor(serialRequest, cv2.COLOR_YUV2BGR_I420) # type: ignore
+            ### Line Detection
+            serialRequest = self._draw_lane_overlay(serialRequest)
+            ok1, mainEncodedImg = cv2.imencode(".jpg", mainRequest)
+            ok2, serialEncodedImg = cv2.imencode(".jpg", serialRequest)
+            if not ok1 or not ok2:
+                return
+            ####
 
-            _, mainEncodedImg = cv2.imencode(".jpg", mainRequest) # type: ignore
-            _, serialEncodedImg = cv2.imencode(".jpg", serialRequest) # type: ignore
+            # _, mainEncodedImg = cv2.imencode(".jpg", mainRequest) # type: ignore
+            # _, serialEncodedImg = cv2.imencode(".jpg", serialRequest) # type: ignore
 
             mainEncodedImageData = base64.b64encode(mainEncodedImg).decode("utf-8") # type: ignore
             serialEncodedImageData = base64.b64encode(serialEncodedImg).decode("utf-8") # type: ignore
@@ -177,6 +184,48 @@ class threadCamera(ThreadWithStop):
         except Exception as e:
             print(f"\033[1;97m[ Camera Thread ] :\033[0m \033[1;91mERROR\033[0m - Failed to initialize camera: {e}")
             self.camera = None
+
+    ### Lane Detection
+    def _draw_lane_overlay(self, bgr_frame):
+        """
+        Primește un frame BGR (ex serialRequest) și desenează liniile detectate cu verde.
+        Returnează frame BGR cu overlay.
+        """
+        try:
+            h, w = bgr_frame.shape[:2]
+
+            gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
+            blur = cv2.GaussianBlur(gray, (5, 5), 0)
+            edges = cv2.Canny(blur, 50, 150)
+
+            # ROI (doar partea de jos)
+            mask = np.zeros_like(edges)
+            roi = np.array([[
+                (0, h),
+                (0, int(h * 0.6)),
+                (w, int(h * 0.6)),
+                (w, h)
+            ]], np.int32)
+            cv2.fillPoly(mask, roi, 255)
+            cropped = cv2.bitwise_and(edges, mask)
+
+            lines = cv2.HoughLinesP(
+                cropped, 1, np.pi / 180,
+                threshold=50,
+                minLineLength=40,
+                maxLineGap=50
+            )
+
+            out = bgr_frame.copy()
+            if lines is not None:
+                for line in lines:
+                    x1, y1, x2, y2 = line[0]
+                    cv2.line(out, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+            return out
+        except Exception:
+            return bgr_frame
+    ###
 
     # =============================== STOP ================================================
     def stop(self):

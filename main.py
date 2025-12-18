@@ -78,8 +78,8 @@ if platform.machine() == 'x86_64':
     sys.modules["PiDNG"] = MagicMock()
 ##########
 
-from src.algorithms.processLaneKeeper import ProcessLaneKeeper
 from src.algorithms.LaneAssist.processLaneAssist import processLaneAssist
+from src.algorithms.autoForward.threepointsTurn import process3PointsTurn
 
 # ------ New component imports ends here ------#
 
@@ -144,7 +144,7 @@ processDashboard = processDashboard(queueList, logging, dashboard_ready, debuggi
 
 # Initializing camera
 camera_ready = Event()
-processCamera = processCamera(queueList, logging, camera_ready, debugging = False)
+processCamera = processCamera(queueList, logging, camera_ready, debugging = True)
 
 # Initializing semaphores
 semaphore_ready = Event()
@@ -156,19 +156,23 @@ processTrafficCom = processTrafficCommunication(queueList, logging, 3, traffic_c
 
 # Initializing serial connection NUCLEO - > PI
 serial_handler_ready = Event()
-processSerialHandler = processSerialHandler(queueList, logging, serial_handler_ready, dashboard_ready, debugging = False)
+processSerialHandler = processSerialHandler(queueList, logging, serial_handler_ready, dashboard_ready, debugging = True)
 
 # Adding all processes to the list
 allProcesses.extend([processCamera, processSemaphore, processTrafficCom, processSerialHandler, processDashboard])
 allEvents.extend([camera_ready, semaphore_ready, traffic_com_ready, serial_handler_ready, dashboard_ready])
 
 # ------ New component initialize starts here ------#
-procLaneKeeper = ProcessLaneKeeper(queueList, logging, debugging=True)
-allProcesses.append(procLaneKeeper)
 
 LaneAssist_ready = Event()
 processLaneAssist = processLaneAssist(queueList, logging, LaneAssist_ready, debugging = False)
 allProcesses.insert(0, processLaneAssist)
+
+three_points_ready = Event()
+process3PointsTurnProc = process3PointsTurn(queueList, logging, three_points_ready, debugging=True)
+
+allProcesses.append(process3PointsTurnProc)
+allEvents.append(three_points_ready)
 
 # ------ New component initialize ends here ------#
 
