@@ -146,7 +146,7 @@ class threadRead(ThreadWithStop):
         """This function select which type of message we receive from NUCLEO and send the data further."""
 
         if '@' in buff and ':' in buff:
-            action, value = buff.split(":") 
+            action, value = buff.split(":", 1)
             action = action[1:]
             if self.debugger:
                 self.logger.info(buff)
@@ -170,21 +170,34 @@ class threadRead(ThreadWithStop):
                 self.currentSpeedSender.send(0.0)
                 self.currentSteerSender.send(0.0)
 
+            # elif action == "speed":
+            #     speed = value.split(",")[0]
+            #     if (lambda v: (lambda: float(v), True)[1] if isinstance(v, str) else False)(speed):
+            #         self.currentSpeedSender.send(float(speed))
             elif action == "speed":
-                speed = value.split(",")[0]
-                if (lambda v: (lambda: float(v), True)[1] if isinstance(v, str) else False)(speed):
-                    self.currentSpeedSender.send(float(speed))
+                raw = value.split(",")[0]
+                # Cut off anything after '@', ';' or whitespace
+                speed_str = re.split(r'[@;\s]', raw)[0]
+                if self.is_float(speed_str):
+                    self.currentSpeedSender.send(float(speed_str))
+            #-------------------------------------------------------------------------------------------
 
+            # elif action == "steer":
+            #     steer = value.split(",")[0]
+            #     if (lambda v: (lambda: float(v), True)[1] if isinstance(v, str) else False)(steer):
+            #         self.currentSteerSender.send(float(steer))
             elif action == "steer":
-                steer = value.split(",")[0]
-                if (lambda v: (lambda: float(v), True)[1] if isinstance(v, str) else False)(steer):
-                    self.currentSteerSender.send(float(steer))
+                raw = value.split(",")[0]
+                steer_str = re.split(r'[@;\s]', raw)[0]
+                if self.is_float(steer_str):
+                    self.currentSteerSender.send(float(steer_str))
+            #-------------------------------------------------------------------------------------------
 
             elif action == "vcdCalib":
                 splittedValue = value.split(";")
                 speedPWM = splittedValue[0]
                 steerPWM = splittedValue[1]
-                
+
                 if speedPWM == "0" and steerPWM == "0":
                     self.calibRunDoneSender.send(True)
                 else:
@@ -198,17 +211,31 @@ class threadRead(ThreadWithStop):
                 lowerLimit = splittedValue[0]
                 upperLimit = splittedValue[1]
                 self.steeringLimitsSender.send({"lowerLimit": lowerLimit, "upperLimit": upperLimit})
-                
+
+            # elif action == "instant":
+            #     if self.check_valid_value(action, value):
+            #         self.instantConsumptionSender.send(float(value))
             elif action == "instant":
                 if self.check_valid_value(action, value):
-                    self.instantConsumptionSender.send(float(value))
+                    instant_str = re.split(r'[@;\s]', value)[0]
+                    if self.is_float(instant_str):
+                        self.instantConsumptionSender.send(float(instant_str))
+            #-------------------------------------------------------------------------------------------
 
+            # elif action == "battery":
+            #     if self.check_valid_value(action, value):
+            #         percentage = (int(value)-7000)/14
+            #         percentage = max(0, min(100, round(percentage)))
+
+            #         self.batteryLvlSender.send(percentage)
             elif action == "battery":
                 if self.check_valid_value(action, value):
-                    percentage = (int(value)-7000)/14
-                    percentage = max(0, min(100, round(percentage)))
-
-                    self.batteryLvlSender.send(percentage)
+                    battery_str = re.split(r'[@;\s]', value)[0]
+                    if battery_str.isdigit():
+                        percentage = (int(battery_str) - 7000) / 14
+                        percentage = max(0, min(100, round(percentage)))
+                        self.batteryLvlSender.send(percentage)
+            #-------------------------------------------------------------------------------------------
 
             elif action == "resourceMonitor":
                 if self.check_valid_value(action, value):
@@ -222,25 +249,25 @@ class threadRead(ThreadWithStop):
                 if data:
                     print(f"\033[1;97m[ Serial Handler ] :\033[0m \033[1;93mWARNING\033[0m - Shutdown in \033[94m{data.group(1)}h {data.group(2)}m {data.group(3)}s\033[0m")
                     self.warningSender.send(data)
-                    
+
             elif action == "shutdown":
                 print(f"\033[1;97m[ Serial Handler ] :\033[0m \033[1;93mWARNING\033[0m - \033[94mShutting down now!\033[0m")
                 self.event.wait(3)
                 os.system("sudo shutdown -h now")
-            
+
     def check_valid_value(self, action, message):
         if message == "syntax error":
             print(f"\033[1;97m[ Serial Handler ] :\033[0m \033[1;93mWARNING\033[0m - Invalid \033[94m{action.upper()}\033[0m value (expected {self.expectedValues[action]})")
             return False
-    
+
         if message == "kl 15/30 is required!!":
             print(f"\033[1;97m[ Serial Handler ] :\033[0m \033[1;93mWARNING\033[0m - KL 15/30 required for \033[94m{action.upper()}\033[0m")
             return False
-        
+
         if message == "ack":
             return False
         return True
-    
+
     def is_float(self, string):
         try:
             float(string)
