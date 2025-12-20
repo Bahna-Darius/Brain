@@ -1,0 +1,105 @@
+1 Introduction
+
+This report describes how the team initiated the project work, what was implemented during the reporting period, and what is proposed for completion this month. The team was highly motivated and enthusiastic from the first day of the project. During the work, several technical and organizational challenges were encountered; however, these were addressed as the project progressed. As an initial step, the laboratory was equipped with the necessary tools and resources required to support the planned activities and ensure efficient execution.
+
+2 Planned activities
+
+Research:
+We began with a technical review of the overall system. The first step was to understand how the system operates, with a focus on the communication flow between the NUCLEO and the Brain. More specifically, we investigated how the embedded system communicates with the Brain and how the Brain communicates back to the embedded system.
+
+Environment preparation:
+We planned to run the simulator, validate that it works correctly, and test a small script within it. In parallel, we planned hardware improvements with emphasis on mechanical components. We also planned to 3D print the first traffic signs and purchased the semaphores, with the intention of making them operate via the server.
+
+Development:
+We planned to send basic commands to the NUCLEO from a Raspbian terminal using Minicom, a text-based terminal emulator and serial communication program, in order to directly test serial command input and device responses. After understanding how the NUCLEO receives input and returns responses, we proceeded to analyze the Brain, where we identified that the Brain sends messages to the NUCLEO through threadWrite. As a third development task, we planned to implement a lane detection algorithm; therefore, we downloaded a Lane Keeping Assist implementation using OpenCV, Python, and Fuzzy Logic as a reference to support the development of our own lane detection solution.
+
+3 Status of planned activities
+Setting up the simulator
+
+Status: completed
+
+Implementation:
+A major challenge when running the Brain project on a laptop was the incompatibility of the picamera2 and PiDNG hardware libraries. These libraries are native to the ARM architecture (Raspberry Pi) and cannot be installed on the x86_64 architecture (PC). This dependency prevented the code from starting in simulation mode.
+The implemented technical solution was a conditional mocking mechanism. The application entry point (main.py) was modified to detect the system architecture (platform.machine() == 'x86_64'). When running on a laptop, virtual objects (unittest.mock.MagicMock) are injected instead of the real hardware libraries, allowing the code to initialize correctly and connect to the simulator without import errors.
+
+Difficulties:
+Hardware-specific libraries were not compatible with the PC architecture, blocking execution in simulation mode.
+
+3D Prints
+
+Status: ongoing
+
+Implementation:
+We successfully printed the first three traffic signs.
+
+Difficulties:
+Not reported during this period.
+
+Hardware improvements
+
+Status: ongoing
+
+Implementation:
+We observed abnormal noise while the vehicle was moving forward and noticed that the front wheels did not fully return to the neutral position after turning left. We opened the front and rear transmissions, cleaned the components, and made mechanical adjustments to improve smoothness and wheel movement.
+
+Difficulties:
+We still have issues with the rear differential, as it does not fit perfectly in the plastic housing. For this reason, we are planning to replace it with a new unit of the same model. Regarding the front wheels, we suspect the servo motor may be defective and plan to repair or replace it.
+
+Semaphores
+
+Status: ongoing
+
+Implementation:
+We opened the semaphores and connected them to an Arduino. A basic control program was developed to change the semaphore colors.
+
+Difficulties:
+The current functionality is minimal and not yet integrated into the server-based control as initially planned.
+
+Simple commands using allMessages
+
+Status: completed
+
+Implementation:
+A simple AUTO behaviour (processAutoForward) was implemented to control the car by sending SpeedMotor and SteerMotor commands using the allMessages queue system (messageHandlerSender). The process listens for StateChange, and when the AUTO state is detected, it executes a timed sequence (drive → stop → drive with steering → final stop).
+
+To ensure reliable reception and interpretation of motor commands, modifications were made to the Serial Handler receive logic (threadRead), which is responsible for parsing incoming serial messages from the NUCLEO before forwarding them into the system.
+
+Changes made in threadRead (new vs old):
+
+Safer message splitting:
+The parsing logic was updated from a generic string split to a controlled split (split(":", 1)), ensuring that messages containing additional : characters do not cause runtime errors. This prevents ValueError exceptions when unexpected delimiters appear in incoming data.
+
+Improved speed parsing:
+Speed values are now cleaned before conversion by removing trailing characters such as @, ;, or whitespace. The updated implementation uses a dedicated is_float() validation instead of a lambda-based check, making the parsing clearer, safer, and more robust against malformed serial data.
+
+Improved steering parsing:
+Steering values were updated using the same hardened parsing strategy as speed values. This ensures consistent handling of serial messages and prevents incorrect parsing when extra characters are present.
+
+Improved instant consumption parsing:
+Instant consumption values are now validated by stripping trailing non-numeric characters and verifying float compatibility before conversion. This prevents crashes caused by malformed or partially corrupted serial messages.
+
+Improved battery value parsing:
+Battery values are now sanitized before integer conversion. By validating that the extracted value is numeric, the updated logic avoids crashes when additional characters are appended to the serial message.
+
+Why this approach is better:
+The updated threadRead implementation represents a hardened parsing layer. By sanitizing incoming serial data and validating numeric values before conversion, the system becomes significantly more resilient to timing issues, message concatenation, and noisy serial input. This is especially important when speed and steering commands are sent close together, as it prevents parsing errors and improves overall system stability.
+
+Difficulties:
+Initially, closely timed serial messages could lead to malformed values or parsing errors due to insufficient input validation.
+
+Solution:
+By strengthening the threadRead parsing logic and cleaning incoming values before processing, these issues were eliminated, resulting in safer message handling and more reliable command execution.
+
+Line detection:
+
+Status: Completed
+
+Implementation:
+
+/
+
+4 General status of the project
+Description of the actual status of the entire project.
+
+For example:
+The car can do __, __, __ but encounters errors on __. The ___ needs additional development if time allows.
