@@ -78,8 +78,8 @@ if platform.machine() == 'x86_64':
     sys.modules["PiDNG"] = MagicMock()
 ##########
 
-from src.algorithms.LaneAssist.processLaneAssist import processLaneAssist
-from src.algorithms.autoForward.threepointsTurn import process3PointsTurn
+# from src.algorithms.LaneAssist.processLaneAssist import processLaneAssist
+# from src.algorithms.autoForward.threepointsTurn import process3PointsTurn
 
 # ------ New component imports ends here ------#
 
@@ -164,15 +164,15 @@ allEvents.extend([camera_ready, semaphore_ready, traffic_com_ready, serial_handl
 
 # ------ New component initialize starts here ------#
 
-LaneAssist_ready = Event()
-processLaneAssist = processLaneAssist(queueList, logging, LaneAssist_ready, debugging = False)
-allProcesses.insert(0, processLaneAssist)
+# LaneAssist_ready = Event()
+# processLaneAssist = processLaneAssist(queueList, logging, LaneAssist_ready, debugging = False)
+# allProcesses.insert(0, processLaneAssist)
 
-three_points_ready = Event()
-process3PointsTurnProc = process3PointsTurn(queueList, logging, three_points_ready, debugging=True)
-
-allProcesses.append(process3PointsTurnProc)
-allEvents.append(three_points_ready)
+# three_points_ready = Event()
+# process3PointsTurnProc = process3PointsTurn(queueList, logging, three_points_ready, debugging=True)
+#
+# allProcesses.append(process3PointsTurnProc)
+# allEvents.append(three_points_ready)
 
 # ------ New component initialize ends here ------#
 
