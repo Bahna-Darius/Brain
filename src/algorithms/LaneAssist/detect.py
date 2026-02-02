@@ -100,6 +100,9 @@ class LaneDetection:
 
                 return coef
             except Exception as e:
+                #DEBUG
+                print("[FIT DEBUG] polyfit failed:", e)
+
                 return None
 
         return None

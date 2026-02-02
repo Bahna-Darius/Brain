@@ -86,7 +86,6 @@ if platform.machine() == 'x86_64':
 # from src.algorithms.LaneAssist.processLaneAssist import processLaneAssist
 # from src.algorithms.autoForward.threepointsTurn import process3PointsTurn
 from src.algorithms.TrafficSigns.processTrafficSigns import processTrafficSigns
-
 # ------ New component imports ends here ------#
 
 # ===================================== SHUTDOWN PROCESS ====================================
