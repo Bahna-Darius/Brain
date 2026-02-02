@@ -55,6 +55,11 @@ class SystemMode(Enum):
             "process": {
                 "enabled": False,
             }
+        },
+        "traffic_signs": {   # new component added for traffic signs detection
+            "process": {
+                "enabled": False,
+            }
         }
     }
 
@@ -82,6 +87,11 @@ class SystemMode(Enum):
             "process": {
                 "enabled": False,
             }
+        },
+        "traffic_signs": {   # new component added for traffic signs detection
+            "process": {
+                "enabled": True,
+            }
         }
     }
 
@@ -106,6 +116,11 @@ class SystemMode(Enum):
             }
         },
         "traffic_com": {
+            "process": {
+                "enabled": False,
+            }
+        },
+        "traffic_signs": {   # new component added for traffic signs detection
             "process": {
                 "enabled": False,
             }
@@ -136,6 +151,11 @@ class SystemMode(Enum):
             "process": {
                 "enabled": True,
             }
+        },
+        "traffic_signs": {   # new component added for traffic signs detection
+            "process": {
+                "enabled": False,
+            }
         }
     }
 
@@ -143,7 +163,7 @@ class SystemMode(Enum):
         "mode": "stop",
         "camera": {
             "process": {
-                "enabled": True,
+                "enabled": False,
             },
             "thread": {
                 "resolution": "240p",
@@ -160,6 +180,11 @@ class SystemMode(Enum):
             }
         },
         "traffic_com": {
+            "process": {
+                "enabled": False,
+            }
+        },
+        "traffic_signs": {   # new component added for traffic signs detection
             "process": {
                 "enabled": False,
             }
