@@ -6,6 +6,7 @@ __pycache__
 temp/serial_history.log
 src/dashboard/frontend/.angular/cache
 src/dashboard/frontend/src/app/webSocket/web-socket.service.ts
+src/algorithms/TrafficSigns/models/tsd_best.pt
 
 # ======================
 # Python
