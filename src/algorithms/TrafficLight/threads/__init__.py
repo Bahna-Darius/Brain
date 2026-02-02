@@ -1,0 +1,1 @@
+"""Threads for TrafficLight process."""
