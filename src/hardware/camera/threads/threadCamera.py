@@ -31,7 +31,6 @@ import threading
 import base64
 import picamera2
 import time
-import numpy as np
 
 from src.utils.messages.allMessages import (
     mainCamera,
@@ -40,12 +39,14 @@ from src.utils.messages.allMessages import (
     Record,
     Brightness,
     Contrast,
-    StateChange
 )
 from src.utils.messages.messageHandlerSender import messageHandlerSender
-from src.templates.threadwithstop import ThreadWithStop
 from src.utils.messages.messageHandlerSubscriber import messageHandlerSubscriber
+from src.templates.threadwithstop import ThreadWithStop
+from src.utils.messages.allMessages import StateChange
 from src.statemachine.systemMode import SystemMode
+from src.utils.messages.allMessages import serialCameraRaw
+
 
 class threadCamera(ThreadWithStop):
     """Thread which will handle camera functionalities.\n
@@ -69,6 +70,21 @@ class threadCamera(ThreadWithStop):
         self.recordingSender = messageHandlerSender(self.queuesList, Recording)
         self.mainCameraSender = messageHandlerSender(self.queuesList, mainCamera)
         self.serialCameraSender = messageHandlerSender(self.queuesList, serialCamera)
+        self.serialCameraRawSender = messageHandlerSender(self.queuesList, serialCameraRaw)
+
+        ################ NovaVision 26.01.2026 ###############
+        # NEW ELEMENT:
+        # - Track AUTO/MANUAL mode locally (visual/debug/perception context only)
+        # - No actuator commands are sent from camera thread
+        #####################################################
+        self.is_auto_mode = False
+
+        ################ NovaVision 26.01.2026 ###############
+        # NEW ELEMENT:
+        # - Controlled JPEG quality (stable bandwidth)
+        # - Matches your newer camera thread behavior
+        #####################################################
+        self.encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 65]
 
         self.subscribe()
         self._init_camera()
@@ -99,6 +115,16 @@ class threadCamera(ThreadWithStop):
         if self.camera is None:
             time.sleep(0.1)
             return
+
+        ################ NovaVision 26.01.2026 ###############
+        # NEW ELEMENT:
+        # - Actually call state handler inside loop
+        # - Original had the function but did not call it here
+        #####################################################
+        try:
+            self.state_change_handler()
+        except Exception:
+            pass
             
         try:
             recordRecv = self.recordSubscriber.receive()
@@ -128,16 +154,14 @@ class threadCamera(ThreadWithStop):
                 self.video_writer.write(mainRequest) # type: ignore
 
             serialRequest = cv2.cvtColor(serialRequest, cv2.COLOR_YUV2BGR_I420) # type: ignore
-            ### Line Detection
-            serialRequest = self._draw_lane_overlay(serialRequest)
-            ok1, mainEncodedImg = cv2.imencode(".jpg", mainRequest)
-            ok2, serialEncodedImg = cv2.imencode(".jpg", serialRequest)
-            if not ok1 or not ok2:
-                return
-            ####
 
-            # _, mainEncodedImg = cv2.imencode(".jpg", mainRequest) # type: ignore
-            # _, serialEncodedImg = cv2.imencode(".jpg", serialRequest) # type: ignore
+            ################ NovaVision 26.01.2026 ###############
+            # NEW ELEMENT:
+            # - Use controlled JPEG quality (same as newer thread)
+            # - Keeps transport stable and predictable
+            #####################################################
+            _, mainEncodedImg = cv2.imencode(".jpg", mainRequest, self.encode_param) # type: ignore
+            _, serialEncodedImg = cv2.imencode(".jpg", serialRequest, self.encode_param) # type: ignore
 
             mainEncodedImageData = base64.b64encode(mainEncodedImg).decode("utf-8") # type: ignore
             serialEncodedImageData = base64.b64encode(serialEncodedImg).decode("utf-8") # type: ignore
@@ -146,7 +170,7 @@ class threadCamera(ThreadWithStop):
                 return
 
             self.mainCameraSender.send(mainEncodedImageData)
-            self.serialCameraSender.send(serialEncodedImageData)
+            self.serialCameraRawSender.send(serialEncodedImageData)
         except Exception as e:
             print(f"\033[1;97m[ Camera ] :\033[0m \033[1;91mERROR\033[0m - {e}")
 
@@ -158,6 +182,20 @@ class threadCamera(ThreadWithStop):
 
             if "resolution" in modeDict:
                 print(f"\033[1;97m[ Camera Thread ] :\033[0m \033[1;92mINFO\033[0m - Resolution changed to {modeDict['resolution']}")
+
+            ################ NovaVision 26.01.2026 ###############
+            # NEW ELEMENT:
+            # - Track AUTO/MANUAL flag without affecting SystemMode behavior
+            # - Useful for dashboard overlay or perception context
+            #####################################################
+            try:
+                state_name = str(message)
+                if "AUTO" in state_name:
+                    self.is_auto_mode = True
+                else:
+                    self.is_auto_mode = False
+            except Exception:
+                pass
 
     # ================================ INIT CAMERA ========================================
     def _init_camera(self):
@@ -185,48 +223,6 @@ class threadCamera(ThreadWithStop):
             print(f"\033[1;97m[ Camera Thread ] :\033[0m \033[1;91mERROR\033[0m - Failed to initialize camera: {e}")
             self.camera = None
 
-    ### Lane Detection
-    def _draw_lane_overlay(self, bgr_frame):
-        """
-        Primește un frame BGR (ex serialRequest) și desenează liniile detectate cu verde.
-        Returnează frame BGR cu overlay.
-        """
-        try:
-            h, w = bgr_frame.shape[:2]
-
-            gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
-            blur = cv2.GaussianBlur(gray, (5, 5), 0)
-            edges = cv2.Canny(blur, 50, 150)
-
-            # ROI (doar partea de jos)
-            mask = np.zeros_like(edges)
-            roi = np.array([[
-                (0, h),
-                (0, int(h * 0.6)),
-                (w, int(h * 0.6)),
-                (w, h)
-            ]], np.int32)
-            cv2.fillPoly(mask, roi, 255)
-            cropped = cv2.bitwise_and(edges, mask)
-
-            lines = cv2.HoughLinesP(
-                cropped, 1, np.pi / 180,
-                threshold=50,
-                minLineLength=40,
-                maxLineGap=50
-            )
-
-            out = bgr_frame.copy()
-            if lines is not None:
-                for line in lines:
-                    x1, y1, x2, y2 = line[0]
-                    cv2.line(out, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-            return out
-        except Exception:
-            return bgr_frame
-    ###
-
     # =============================== STOP ================================================
     def stop(self):
         if self.recording and self.video_writer:
@@ -240,6 +236,16 @@ class threadCamera(ThreadWithStop):
         """Callback function for receiving configs on the pipe."""
         if self._blocker.is_set():
             return
+
+        ################ NovaVision 26.01.2026 ###############
+        # NEW ELEMENT:
+        # - Safety guard: if camera is missing, skip set_controls
+        # - Prevents NoneType crashes if camera disconnects
+        #####################################################
+        if self.camera is None:
+            threading.Timer(1, self.configs).start()
+            return
+
         if self.brightnessSubscriber.is_data_in_pipe():
             message = self.brightnessSubscriber.receive()
             if self.debugger:
