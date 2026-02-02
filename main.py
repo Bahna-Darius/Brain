@@ -68,6 +68,11 @@ from src.statemachine.stateMachine import StateMachine
 from src.statemachine.systemMode import SystemMode
 
 # ------ New component imports starts here ------#
+from src.control.CommandShaper.processCommandShaper import processCommandShaper
+from src.control.SafetyGuard.processSafetyGuard import processSafetyGuard
+from src.algorithms.Perception.processPerception import processPerception
+from src.control.ControlUnit.processControlUnit import processControlUnit
+
 ### Laptop  fake module for raspberry ###
 from unittest.mock import MagicMock
 import platform
@@ -78,8 +83,9 @@ if platform.machine() == 'x86_64':
     sys.modules["PiDNG"] = MagicMock()
 ##########
 
-from src.algorithms.LaneAssist.processLaneAssist import processLaneAssist
-from src.algorithms.autoForward.threepointsTurn import process3PointsTurn
+# from src.algorithms.LaneAssist.processLaneAssist import processLaneAssist
+# from src.algorithms.autoForward.threepointsTurn import process3PointsTurn
+from src.algorithms.TrafficSigns.processTrafficSigns import processTrafficSigns
 
 # ------ New component imports ends here ------#
 
@@ -158,22 +164,46 @@ processTrafficCom = processTrafficCommunication(queueList, logging, 3, traffic_c
 serial_handler_ready = Event()
 processSerialHandler = processSerialHandler(queueList, logging, serial_handler_ready, dashboard_ready, debugging = True)
 
+# Initializing Command Shaper By NovaVision 22.01.2026##########################################
+processCommandShaperInst = processCommandShaper(queueList, logging, debugging=True)
+
+# Initializing Safety Guard By NovaVision 23.01.2026 ###########################################
+processSafetyGuardInst = processSafetyGuard(queueList, logging, debugging=True)
+
+################ NovaVision 26.01.2026 ###############
+# Context:
+# - Perception (Hybrid) is initialized BEFORE being added to allProcesses/allEvents.
+# - Perception consumes serialCamera and publishes PerceptionContext.
+#####################################################
+perception_ready = Event()
+processPerceptionInst = processPerception(queueList, logging, perception_ready, debugging=True)
+
+control_unit_ready = Event()
+processControlUnitInst = processControlUnit(queueList, logging, control_unit_ready, debugging=True)
+
 # Adding all processes to the list
-allProcesses.extend([processCamera, processSemaphore, processTrafficCom, processSerialHandler, processDashboard])
-allEvents.extend([camera_ready, semaphore_ready, traffic_com_ready, serial_handler_ready, dashboard_ready])
+allProcesses.extend([processCamera, processSemaphore, processTrafficCom, processSerialHandler, processDashboard, processPerceptionInst, processControlUnitInst])
+
+allEvents.extend([camera_ready, semaphore_ready, traffic_com_ready, serial_handler_ready, dashboard_ready, perception_ready, control_unit_ready])
+
+# Start order: Perception first, then Safety, then Shaper (as you intended)
+allProcesses.insert(1, processCommandShaperInst)  ### New process 22.01.2026
+allProcesses.insert(1, processSafetyGuardInst)    ### New process 23.01.2026
 
 # ------ New component initialize starts here ------#
+# LaneAssist_ready = Event()
+# processLaneAssist = processLaneAssist(queueList, logging, LaneAssist_ready, debugging = False)
+# allProcesses.insert(0, processLaneAssist)
 
-LaneAssist_ready = Event()
-processLaneAssist = processLaneAssist(queueList, logging, LaneAssist_ready, debugging = False)
-allProcesses.insert(0, processLaneAssist)
+# three_points_ready = Event()
+# process3PointsTurnProc = process3PointsTurn(queueList, logging, three_points_ready, debugging=True)
+#
+# allProcesses.append(process3PointsTurnProc)
+# allEvents.append(three_points_ready)
 
-three_points_ready = Event()
-process3PointsTurnProc = process3PointsTurn(queueList, logging, three_points_ready, debugging=True)
-
-allProcesses.append(process3PointsTurnProc)
-allEvents.append(three_points_ready)
-
+# Initializing traffic sign detection
+traffic_signs_ready = Event()
+processTrafficSignsInst = None  # IMPORTANT: dynamic start/stop
 # ------ New component initialize ends here ------#
 
 # ===================================== START PROCESSES ==================================
@@ -181,6 +211,15 @@ allEvents.append(three_points_ready)
 for process in allProcesses:
     process.daemon = True
     process.start()
+#Debugger########################
+print("\n[MAIN] Started processes:")
+for p in allProcesses:
+    try:
+        print(f" - {p.name} pid={p.pid} alive={p.is_alive()}")
+    except Exception as e:
+        print(f" - {p} (cannot query: {e})")
+print()
+
 
 # ===================================== STAYING ALIVE ====================================
 

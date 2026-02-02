@@ -9,3 +9,5 @@ cryptography>=43,<45
 opencv-python          # if wheel fails, use: sudo apt-get install -y python3-opencv
 pyserial==3.5
 scipy
+ultralytics    #try sudo pip install ultralytics --break-system-packages
+
